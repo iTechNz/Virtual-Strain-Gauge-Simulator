@@ -4,89 +4,386 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Strain Gauge Simulator</title>
-    <!-- Chart.js kütüphanesi grafik çizimi için -->
+    <!-- Chart.js for data visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tailwind CSS for styling matching the reference UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f9;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        /* Custom scrollbar to match the dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 900px;
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
         }
-        h1 {
-            font-size: 1.5rem;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 20px;
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
         }
-        .controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        button.download {
-            background-color: #2ecc71;
-        }
-        button.download:hover {
-            background-color: #27ae60;
-        }
-        .description {
-            font-size: 0.9rem;
-            color: #666;
-            text-align: center;
-            margin-top: 10px;
-            margin-bottom: 20px;
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
         }
     </style>
 </head>
-<body>
+<body class="bg-[#0f172a] text-slate-200 h-screen overflow-hidden flex flex-col font-sans selection:bg-sky-500 selection:text-white">
 
-<div class="container">
-    <h1>Virtual Strain Gauge Data</h1>
-    <p class="description">
-        This simulation generates a 1.5 Hz damped oscillation (true signal) and adds Gaussian noise to simulate realistic sensor data.
-    </p>
-    
-    <!-- Grafik Alanı -->
-    <canvas id="strainChart" width="800" height="400"></canvas>
-    
-    <div class="controls">
-        <button onclick="generateData()">Start Acquisition (Real-time)</button>
-        <button class="download" id="downloadBtn" onclick="downloadCSV()" disabled style="opacity: 0.5; cursor: not-allowed;">Download as CSV</button>
+    <!-- Main Container -->
+    <div class="w-full max-w-[1500px] mx-auto p-2 md:p-4 flex flex-col h-full">
+        
+        <!-- Header -->
+        <header class="bg-[#1e293b] border border-slate-700 rounded-xl p-3 md:p-4 mb-4 shadow-xl flex items-center justify-center relative shrink-0">
+            <h1 class="text-xl md:text-2xl font-bold text-sky-400 tracking-wide text-center" data-i18n="title">
+                Virtual Strain Gauge Simulator
+            </h1>
+            
+            <!-- Language Switcher -->
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+                <button onclick="setLang('EN')" id="btn-EN" class="lang-btn bg-sky-500 text-white px-2 py-1 rounded text-xs font-bold transition-colors">EN</button>
+                <button onclick="setLang('TR')" id="btn-TR" class="lang-btn bg-slate-700 text-slate-300 hover:bg-slate-600 px-2 py-1 rounded text-xs font-bold transition-colors">TR</button>
+                <button onclick="setLang('DE')" id="btn-DE" class="lang-btn bg-slate-700 text-slate-300 hover:bg-slate-600 px-2 py-1 rounded text-xs font-bold transition-colors">DE</button>
+                <button onclick="setLang('IT')" id="btn-IT" class="lang-btn bg-slate-700 text-slate-300 hover:bg-slate-600 px-2 py-1 rounded text-xs font-bold transition-colors">IT</button>
+            </div>
+        </header>
+
+        <!-- Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
+            
+            <!-- Left Panel: Controls & Information -->
+            <div class="lg:col-span-1 flex flex-col gap-4 overflow-y-auto pr-1 pb-2">
+                <!-- System Parameters Card -->
+                <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-xl">
+                    <h2 class="text-sm font-semibold text-slate-100 mb-3 border-b border-slate-600 pb-2" data-i18n="sys_params">System Parameters</h2>
+                    
+                    <!-- Freq Control -->
+                    <div class="mb-3 bg-[#0f172a] p-2.5 rounded-lg border border-slate-700">
+                        <label class="block text-[11px] font-bold text-sky-400 mb-1.5" data-i18n="freq_label">FREQUENCY (f) [Hz]</label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="freqSlider" min="0.1" max="10.0" step="0.1" value="1.5" class="flex-1 accent-sky-500">
+                            <input type="number" id="freqInput" min="0.1" max="10.0" step="0.1" value="1.5" class="w-14 bg-slate-800 border border-slate-600 text-white rounded px-1 py-0.5 text-xs text-center">
+                        </div>
+                    </div>
+
+                    <!-- Damping Control -->
+                    <div class="mb-3 bg-[#0f172a] p-2.5 rounded-lg border border-slate-700">
+                        <label class="block text-[11px] font-bold text-sky-400 mb-1.5" data-i18n="damp_label">DAMPING COEFFICIENT (ζ)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="dampSlider" min="0.0" max="5.0" step="0.1" value="0.8" class="flex-1 accent-sky-500">
+                            <input type="number" id="dampInput" min="0.0" max="5.0" step="0.1" value="0.8" class="w-14 bg-slate-800 border border-slate-600 text-white rounded px-1 py-0.5 text-xs text-center">
+                        </div>
+                    </div>
+
+                    <!-- Duration Control -->
+                    <div class="bg-[#0f172a] p-2.5 rounded-lg border border-slate-700">
+                        <label class="block text-[11px] font-bold text-sky-400 mb-1.5" data-i18n="dur_label">DURATION (t) [s]</label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="durSlider" min="1.0" max="10.0" step="0.5" value="4.0" class="flex-1 accent-sky-500">
+                            <input type="number" id="durInput" min="1.0" max="10.0" step="0.5" value="4.0" class="w-14 bg-slate-800 border border-slate-600 text-white rounded px-1 py-0.5 text-xs text-center">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: Noise & Disturbances Card -->
+                <div class="bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-xl mb-auto">
+                    <h2 class="text-sm font-semibold text-slate-100 mb-3 border-b border-slate-600 pb-2" data-i18n="noise_params">Signal Disturbances</h2>
+                    
+                    <div class="flex flex-col gap-2.5">
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="chk_white" class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900" checked>
+                            <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors" data-i18n="noise_white">Sensor White Noise</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="chk_chassis" class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                            <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors" data-i18n="noise_chassis">Chassis Vibration</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="chk_ac" class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                            <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors" data-i18n="noise_ac">50 Hz AC Grid Noise</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="chk_bearing" class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                            <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors" data-i18n="noise_bearing">Bearing Micro-cracks</span>
+                        </label>
+
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" id="chk_unbalance" class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                            <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors" data-i18n="noise_unbalance">Rotor Unbalance</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Chart -->
+            <div class="lg:col-span-3 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-xl flex flex-col relative min-h-0">
+                <div class="flex items-center justify-between mb-2 shrink-0">
+                    <h2 class="text-base font-semibold text-slate-100" data-i18n="chart_title">Oscilloscope Output</h2>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-normal text-slate-400 bg-slate-900 px-2 py-1 rounded-full border border-slate-700 transition-colors" id="statusBadge" data-i18n="status_ready">Status: Ready</span>
+                        
+                        <button id="downloadBtn" onclick="downloadCSV()" disabled class="bg-slate-700 text-slate-500 cursor-not-allowed font-medium py-1.5 px-3 rounded text-xs transition-all flex items-center gap-1.5 border border-slate-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            <span data-i18n="download_btn">Download CSV</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="relative flex-1 w-full min-h-0">
+                    <!-- AC Noise Overlay -->
+                    <div id="ac_overlay" class="hidden absolute top-2 right-2 bg-[#0f172a]/80 backdrop-blur-sm border border-slate-600 rounded p-2.5 shadow-lg z-10 pointer-events-none min-w-[180px]">
+                        <h3 class="text-[10px] font-bold text-sky-400 mb-1.5 border-b border-slate-700 pb-1" data-i18n="analysis_title">AC Noise Analysis</h3>
+                        <div id="analysis_content" class="text-[10px] text-slate-300 font-mono">
+                            <!-- Content injected via JS -->
+                        </div>
+                    </div>
+                    
+                    <canvas id="strainChart"></canvas>
+                </div>
+            </div>
+
+        </div>
     </div>
-</div>
+
+    <!-- Footer -->
+    <footer class="py-2 border-t border-slate-800 bg-[#0b1120] shrink-0">
+        <p class="text-center text-slate-600 text-[10px] tracking-wide" data-i18n="footer">
+            AYTEKİN ÖZKAN | Mechanical Vibrations & Signal Processing | Academic Presentation Module
+        </p>
+    </footer>
 
 <script>
     let chartInstance = null;
     let fullData = { t: [], measured: [], trueSignal: [] };
     let currentData = { t: [], measured: [], trueSignal: [] };
     let animationInterval = null;
+    let currentLang = 'EN';
+    let currentStatus = 'ready';
+
+    // Dictionary for translations
+    const translations = {
+        EN: {
+            title: "Virtual Strain Gauge Simulator",
+            sys_params: "System Parameters",
+            freq_label: "FREQUENCY (f) [Hz]",
+            damp_label: "DAMPING COEFFICIENT (ζ)",
+            dur_label: "DURATION (t) [s]",
+            data_acq: "Data Acquisition",
+            start_btn: "Start Simulation",
+            download_btn: "Download CSV",
+            chart_title: "Oscilloscope Output",
+            status_ready: "Status: Ready",
+            status_acq: "Status: Acquiring Data...",
+            status_done: "Status: Data Ready",
+            footer: "AYTEKİN ÖZKAN | Mechanical Vibrations & Signal Processing | Academic Presentation Module",
+            chart_x: "Time (s)",
+            chart_y: "Microstrain (με)",
+            meas_data: "Measured Data (Noisy)",
+            true_data: "True Signal (Theoretical)",
+            noise_params: "Signal Disturbances",
+            noise_white: "Sensor White Noise",
+            noise_chassis: "Chassis Vibration",
+            noise_ac: "50 Hz AC Grid Noise",
+            noise_bearing: "Bearing Micro-cracks",
+            noise_unbalance: "Rotor Unbalance",
+            analysis_title: "AC Noise Analysis",
+            analysis_inactive: "Activate 50 Hz AC Grid Noise to see the frequency-period relationship.",
+            freq_ac: "Frequency (f)",
+            period_calc: "Period (T = 1/f)",
+            dur_simple: "Simulation Duration (t)",
+            total_cycles: "Total AC Cycles (t/T)"
+        },
+        TR: {
+            title: "Sanal Gerinim Ölçer Simülatörü",
+            sys_params: "Sistem Parametreleri",
+            freq_label: "FREKANS (f) [Hz]",
+            damp_label: "SÖNÜM KATSAYISI (ζ)",
+            dur_label: "SÜRE (t) [s]",
+            data_acq: "Veri Toplama",
+            start_btn: "Simülasyonu Başlat",
+            download_btn: "CSV İndir",
+            chart_title: "Osiloskop Çıktısı",
+            status_ready: "Durum: Hazır",
+            status_acq: "Durum: Veri Alınıyor...",
+            status_done: "Durum: Veri Hazır",
+            footer: "AYTEKİN ÖZKAN | Mekanik Titreşimler & Sinyal İşleme | Akademik Sunum Modülü",
+            chart_x: "Zaman (s)",
+            chart_y: "Mikrogerinim (με)",
+            meas_data: "Ölçülen Veri (Gürültülü)",
+            true_data: "Gerçek Sinyal (Teorik)",
+            noise_params: "Sinyal Bozucu Etkiler",
+            noise_white: "Sensör Beyaz Gürültüsü",
+            noise_chassis: "Kasa Titreşimi",
+            noise_ac: "50 Hz Şebeke Gürültüsü",
+            noise_bearing: "Rulman Mikro Çatlakları",
+            noise_unbalance: "Rotor Balanssızlığı",
+            analysis_title: "AC Gürültü Analizi",
+            analysis_inactive: "Frekans-periyot ilişkisini görmek için 50 Hz Şebeke Gürültüsünü aktifleştirin.",
+            freq_ac: "Frekans (f)",
+            period_calc: "Periyot (T = 1/f)",
+            dur_simple: "Simülasyon Süresi (t)",
+            total_cycles: "Toplam AC Döngüsü (t/T)"
+        },
+        DE: {
+            title: "Virtueller Dehnungsmessstreifen-Simulator",
+            sys_params: "Systemparameter",
+            freq_label: "FREQUENZ (f) [Hz]",
+            damp_label: "DÄMPFUNGSKOEFFIZIENT (ζ)",
+            dur_label: "DAUER (t) [s]",
+            data_acq: "Datenerfassung",
+            start_btn: "Simulation Starten",
+            download_btn: "CSV Herunterladen",
+            chart_title: "Oszilloskop-Ausgabe",
+            status_ready: "Status: Bereit",
+            status_acq: "Status: Daten werden erfasst...",
+            status_done: "Status: Daten Bereit",
+            footer: "AYTEKİN ÖZKAN | Mechanische Schwingungen & Signalverarbeitung | Akademisches Präsentationsmodul",
+            chart_x: "Zeit (s)",
+            chart_y: "Mikrodehnung (με)",
+            meas_data: "Gemessene Daten (Rauschen)",
+            true_data: "Wahres Signal (Theoretisch)",
+            noise_params: "Signalstörungen",
+            noise_white: "Sensor-Weißes Rauschen",
+            noise_chassis: "Fahrgestellvibration",
+            noise_ac: "50 Hz Netzrauschen",
+            noise_bearing: "Lager-Mikrorisse",
+            noise_unbalance: "Rotorunwucht",
+            analysis_title: "AC-Rauschanalyse",
+            analysis_inactive: "Aktivieren Sie 50 Hz Netzrauschen, um die Frequenz-Perioden-Beziehung zu sehen.",
+            freq_ac: "Frequenz (f)",
+            period_calc: "Periode (T = 1/f)",
+            dur_simple: "Simulationsdauer (t)",
+            total_cycles: "Gesamte AC-Zyklen (t/T)"
+        },
+        IT: {
+            title: "Simulatore Virtuale di Estensimetri",
+            sys_params: "Parametri di Sistema",
+            freq_label: "FREQUENZA (f) [Hz]",
+            damp_label: "COEFFICIENTE DI SMORZAMENTO (ζ)",
+            dur_label: "DURATA (t) [s]",
+            data_acq: "Acquisizione Dati",
+            start_btn: "Avvia Simulazione",
+            download_btn: "Scarica CSV",
+            chart_title: "Uscita Oscilloscopio",
+            status_ready: "Stato: Pronto",
+            status_acq: "Stato: Acquisizione Dati...",
+            status_done: "Stato: Dati Pronti",
+            footer: "AYTEKİN ÖZKAN | Vibrazioni Meccaniche ed Elaborazione dei Segnali | Modulo di Presentazione Accademica",
+            chart_x: "Tempo (s)",
+            chart_y: "Microdeformazione (με)",
+            meas_data: "Dati Misurati (Rumore)",
+            true_data: "Segnale Vero (Teorico)",
+            noise_params: "Disturbi del Segnale",
+            noise_white: "Rumore Bianco Sensore",
+            noise_chassis: "Vibrazione del Telaio",
+            noise_ac: "Rumore di Rete 50 Hz",
+            noise_bearing: "Micro-crepe del Cuscinetto",
+            noise_unbalance: "Sbilanciamento del Rotore",
+            analysis_title: "Analisi Rumore AC",
+            analysis_inactive: "Attivare il Rumore di Rete 50 Hz per vedere la relazione frequenza-periodo.",
+            freq_ac: "Frequenza (f)",
+            period_calc: "Periodo (T = 1/f)",
+            dur_simple: "Durata Simulazione (t)",
+            total_cycles: "Cicli AC Totali (t/T)"
+        }
+    };
+
+    // Configure Chart.js defaults for dark theme
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+
+    function setLang(lang) {
+        currentLang = lang;
+        
+        // Update Buttons Styling
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.classList.remove('bg-sky-500', 'text-white');
+            btn.classList.add('bg-slate-700', 'text-slate-300');
+        });
+        const activeBtn = document.getElementById(`btn-${lang}`);
+        activeBtn.classList.remove('bg-slate-700', 'text-slate-300');
+        activeBtn.classList.add('bg-sky-500', 'text-white');
+
+        // Update Text Elements
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if(translations[lang][key]) {
+                el.textContent = translations[lang][key];
+            }
+        });
+
+        // Update Chart Labels if initialized
+        if(chartInstance) {
+            chartInstance.options.scales.x.title.text = translations[lang].chart_x;
+            chartInstance.options.scales.y.title.text = translations[lang].chart_y;
+            chartInstance.data.datasets[0].label = translations[lang].meas_data;
+            chartInstance.data.datasets[1].label = translations[lang].true_data;
+            chartInstance.update('none');
+        }
+        
+        updateStatusUI();
+        updateAnalysis();
+    }
+
+    function updateAnalysis() {
+        const hasAC = document.getElementById('chk_ac').checked;
+        const duration = parseFloat(document.getElementById('durInput').value);
+        const overlayDiv = document.getElementById('ac_overlay');
+        const contentDiv = document.getElementById('analysis_content');
+        
+        if (!hasAC) {
+            overlayDiv.classList.add('hidden');
+            return;
+        }
+
+        overlayDiv.classList.remove('hidden');
+
+        const f = 50;
+        const T = 1 / f;
+        const cycles = Math.round(duration / T);
+
+        contentDiv.innerHTML = `
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-sky-400 font-semibold" data-i18n="freq_ac">${translations[currentLang].freq_ac}:</span>
+                <span class="text-slate-100">50 Hz</span>
+            </div>
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-sky-400 font-semibold" data-i18n="period_calc">${translations[currentLang].period_calc}:</span>
+                <span class="text-slate-100">0.02 s</span>
+            </div>
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-sky-400 font-semibold" data-i18n="dur_simple">${translations[currentLang].dur_simple}:</span>
+                <span class="text-slate-100">${duration.toFixed(1)} s</span>
+            </div>
+            <div class="flex justify-between items-center pt-1.5 mt-1.5 border-t border-slate-600">
+                <span class="text-emerald-400 font-bold" data-i18n="total_cycles">${translations[currentLang].total_cycles}:</span>
+                <span class="text-emerald-400 font-bold text-xs">${cycles}</span>
+            </div>
+        `;
+    }
+
+    function updateStatusUI() {
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusBadge = document.getElementById('statusBadge');
+        
+        statusBadge.textContent = translations[currentLang][`status_${currentStatus}`];
+        
+        if (currentStatus === 'ready') {
+            statusBadge.className = "text-[10px] font-normal text-slate-400 bg-slate-900 px-2 py-1 rounded-full border border-slate-700 transition-colors";
+            downloadBtn.disabled = true;
+            downloadBtn.className = "bg-slate-700 text-slate-500 cursor-not-allowed font-medium py-1.5 px-3 rounded text-xs transition-all flex items-center gap-1.5 border border-slate-600";
+        } else if (currentStatus === 'acq') {
+            statusBadge.className = "text-[10px] font-normal text-sky-400 bg-slate-900 px-2 py-1 rounded-full border border-sky-900 animate-pulse transition-colors";
+            downloadBtn.disabled = true;
+            downloadBtn.className = "bg-slate-700 text-slate-500 cursor-not-allowed font-medium py-1.5 px-3 rounded text-xs transition-all flex items-center gap-1.5 border border-slate-600";
+        } else if (currentStatus === 'done') {
+            statusBadge.className = "text-[10px] font-normal text-emerald-400 bg-slate-900 px-2 py-1 rounded-full border border-emerald-900 transition-colors";
+            downloadBtn.disabled = false;
+            downloadBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-1.5 px-3 rounded text-xs transition-colors shadow-lg shadow-emerald-900/50 flex items-center gap-1.5 border border-emerald-500";
+        }
+    }
 
     // Gaussian noise generation using Box-Muller transform
     function randomGaussian(mean, stdDev) {
@@ -96,23 +393,98 @@
         return mean + stdDev * randStdNormal;
     }
 
+    // Input Sync Logic
+    function syncInputs(sliderId, inputId) {
+        const slider = document.getElementById(sliderId);
+        const input = document.getElementById(inputId);
+        slider.addEventListener('input', (e) => {
+            input.value = e.target.value;
+            generateData();
+            updateAnalysis();
+        });
+        input.addEventListener('input', (e) => {
+            slider.value = e.target.value;
+            generateData();
+            updateAnalysis();
+        });
+    }
+
+    function resetChartDisplay() {
+        if(animationInterval) clearInterval(animationInterval);
+        const duration = parseFloat(document.getElementById('durInput').value);
+        
+        // Dynamic sampling rate based on duration to prevent aliasing (500 Hz sampling rate)
+        const sampleRate = 500; 
+        const timeSteps = Math.floor(duration * sampleRate);
+        
+        chartInstance.data.labels = Array.from({length: timeSteps}, (_, i) => (i / sampleRate).toFixed(3));
+        chartInstance.data.datasets[0].data = [];
+        chartInstance.data.datasets[1].data = [];
+        chartInstance.update('none');
+        
+        currentStatus = 'ready';
+        updateStatusUI();
+    }
+
     // Signal and data generation
     function generateData() {
-        const timeSteps = 600; 
-        const duration = 4.0; // Seconds
+        const duration = parseFloat(document.getElementById('durInput').value);
+        const freq = parseFloat(document.getElementById('freqInput').value);
+        const damp = parseFloat(document.getElementById('dampInput').value);
         
+        // High frequency sampling (500 Hz) to accurately capture 50Hz AC and Bearing impacts
+        const sampleRate = 500; 
+        const timeSteps = Math.floor(duration * sampleRate); 
+        
+        // Read checkbox states
+        const hasWhite = document.getElementById('chk_white').checked;
+        const hasChassis = document.getElementById('chk_chassis').checked;
+        const hasAC = document.getElementById('chk_ac').checked;
+        const hasBearing = document.getElementById('chk_bearing').checked;
+        const hasUnbalance = document.getElementById('chk_unbalance').checked;
+
         fullData.t = [];
         fullData.measured = [];
         fullData.trueSignal = [];
 
         for (let i = 0; i < timeSteps; i++) {
-            let t = (i / (timeSteps - 1)) * duration;
+            let t = i / sampleRate;
             
-            // True signal: 150 * exp(-0.8 * t) * sin(2 * pi * 1.5 * t)
-            let trueVal = 150 * Math.exp(-0.8 * t) * Math.sin(2 * Math.PI * 1.5 * t);
+            // True signal: Damped oscillation
+            let trueVal = 150 * Math.exp(-damp * t) * Math.sin(2 * Math.PI * freq * t);
             
-            // Noise (standard deviation = 8)
-            let noise = randomGaussian(0, 8);
+            // Compile noise and disturbances based on user selection
+            let noise = 0;
+            
+            if (hasWhite) {
+                // Sensor noise simulation (standard deviation = 5)
+                noise += randomGaussian(0, 5); 
+            }
+            
+            if (hasChassis) {
+                // Structural low-frequency rumble (mixed 3.2 Hz and 6.5 Hz)
+                noise += 10 * Math.sin(2 * Math.PI * 3.2 * t) + 8 * Math.sin(2 * Math.PI * 6.5 * t);
+            }
+            
+            if (hasAC) {
+                // Pure 50 Hz grid leakage
+                noise += 15 * Math.sin(2 * Math.PI * 50 * t);
+            }
+            
+            if (hasUnbalance) {
+                // 1x RPM sinusoidal unbalance (simulated fixed shaft at 12 Hz)
+                noise += 25 * Math.sin(2 * Math.PI * 12 * t);
+            }
+            
+            if (hasBearing) {
+                // High-frequency ring-down impacts (10 impacts per second)
+                let impactFreq = 10; 
+                let decay = 80; 
+                let ringFreq = 180; // Resonance of the bearing
+                let phase = (t * impactFreq) % 1.0; 
+                noise += 40 * Math.exp(-phase * decay) * Math.sin(2 * Math.PI * ringFreq * (phase/impactFreq));
+            }
+
             let measuredVal = trueVal + noise;
 
             fullData.t.push(t.toFixed(3)); 
@@ -121,21 +493,17 @@
         }
 
         currentData = fullData; // Keep for CSV download
-        startOscilloscope();
+        startOscilloscope(duration);
     }
 
     // Simulate real-time oscilloscope sweep
-    function startOscilloscope() {
-        const downloadBtn = document.getElementById('downloadBtn');
-        downloadBtn.disabled = true;
-        downloadBtn.style.opacity = '0.5';
-        downloadBtn.style.cursor = 'not-allowed';
+    function startOscilloscope(duration) {
+        currentStatus = 'acq';
+        updateStatusUI();
 
-        if (!chartInstance) {
-            drawChart();
-        }
+        if (!chartInstance) drawChart();
 
-        // Reset chart data but keep labels for fixed X-axis
+        // Reset chart data but keep labels
         chartInstance.data.labels = fullData.t;
         chartInstance.data.datasets[0].data = [];
         chartInstance.data.datasets[1].data = [];
@@ -143,11 +511,10 @@
 
         let currentIndex = 0;
         const totalPoints = fullData.t.length;
-        const fps = 30; // Frames per second
-        const drawInterval = 1000 / fps; // ~33.3ms
-        const duration = 4.0;
-        const totalFrames = duration * fps; // 120 frames
-        const pointsPerFrame = Math.ceil(totalPoints / totalFrames); // ~5 points per frame
+        const fps = 60; 
+        const drawInterval = 1000 / fps; 
+        // Calculate points dynamically based on actual array length to ensure exact duration
+        const pointsPerFrame = Math.ceil(totalPoints / (duration * fps)); 
 
         if (animationInterval) clearInterval(animationInterval);
 
@@ -158,26 +525,21 @@
                 chartInstance.data.datasets[1].data.push(fullData.trueSignal[i]);
             }
             
-            // 'none' updates chart without standard morphing animations for better performance
             chartInstance.update('none'); 
             currentIndex = limit;
 
             if (currentIndex >= totalPoints) {
                 clearInterval(animationInterval);
-                downloadBtn.disabled = false;
-                downloadBtn.style.opacity = '1';
-                downloadBtn.style.cursor = 'pointer';
+                currentStatus = 'done';
+                updateStatusUI();
             }
         }, drawInterval);
     }
 
-    // Draw Chart.js
+    // Draw Chart.js in Dark Mode
     function drawChart() {
         const ctx = document.getElementById('strainChart').getContext('2d');
-        
-        if (chartInstance) {
-            chartInstance.destroy();
-        }
+        if (chartInstance) chartInstance.destroy();
 
         chartInstance = new Chart(ctx, {
             type: 'line',
@@ -187,17 +549,17 @@
                     {
                         label: 'Measured Data (Noisy)',
                         data: [],
-                        borderColor: '#bdc3c7',
-                        backgroundColor: 'rgba(189, 195, 199, 0.2)',
+                        borderColor: 'rgba(148, 163, 184, 0.5)', 
+                        backgroundColor: 'transparent',
                         borderWidth: 1.5,
                         pointRadius: 0,
                         tension: 0.1,
                         order: 2 
                     },
                     {
-                        label: 'True Signal',
+                        label: 'True Signal (Theoretical)',
                         data: [],
-                        borderColor: '#e74c3c',
+                        borderColor: '#38bdf8', 
                         borderWidth: 2.5,
                         pointRadius: 0,
                         tension: 0.1,
@@ -207,34 +569,43 @@
             },
             options: {
                 responsive: true,
-                animation: false, // Disable default animations for oscilloscope effect
+                maintainAspectRatio: false,
+                animation: false, 
+                interaction: { mode: 'index', intersect: false },
                 scales: {
                     x: {
-                        title: { display: true, text: 'Time (s)' },
-                        ticks: { 
-                            maxTicksLimit: 10,
-                            maxRotation: 0
-                        }
+                        title: { display: true, text: 'Time (s)', color: '#94a3b8' },
+                        grid: { color: '#334155', drawBorder: false },
+                        ticks: { maxTicksLimit: 10, maxRotation: 0, color: '#94a3b8' }
                     },
                     y: {
-                        title: { display: true, text: 'Microstrain (με)' },
-                        min: -200, // Fixed Y axis
-                        max: 200  // Fixed Y axis
+                        title: { display: true, text: 'Microstrain (με)', color: '#94a3b8' },
+                        min: -200, 
+                        max: 200,  
+                        grid: { color: '#334155', drawBorder: false },
+                        ticks: { color: '#94a3b8' }
                     }
                 },
                 plugins: {
+                    legend: { labels: { color: '#cbd5e1', usePointStyle: true, boxWidth: 8 } },
                     tooltip: {
-                        mode: 'index',
-                        intersect: false,
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                        titleColor: '#f8fafc', bodyColor: '#cbd5e1',
+                        borderColor: '#334155', borderWidth: 1, padding: 10
                     }
                 }
             }
         });
     }
 
-    // CSV Download
+    // CSV Download Function
     function downloadCSV() {
-        let csvContent = "data:text/csv;charset=utf-8,Time_s,Microstrain_uE\n";
+        // Build header based on language
+        let csvContent = "data:text/csv;charset=utf-8,";
+        if(currentLang === 'EN') csvContent += "Time_s,Microstrain_uE\n";
+        else if (currentLang === 'TR') csvContent += "Zaman_s,Mikrogerinim_uE\n";
+        else if (currentLang === 'DE') csvContent += "Zeit_s,Mikrodehnung_uE\n";
+        else if (currentLang === 'IT') csvContent += "Tempo_s,Microdeformazione_uE\n";
         
         for (let i = 0; i < currentData.t.length; i++) {
             csvContent += currentData.t[i] + "," + currentData.measured[i].toFixed(2) + "\n";
@@ -250,7 +621,27 @@
         document.body.removeChild(link);
     }
 
-    window.onload = generateData;
+    // Initialize 
+    window.onload = () => {
+        syncInputs('freqSlider', 'freqInput');
+        syncInputs('dampSlider', 'dampInput');
+        syncInputs('durSlider', 'durInput');
+        
+        // Add listeners for noise checkboxes to reset chart
+        ['chk_white', 'chk_chassis', 'chk_ac', 'chk_bearing', 'chk_unbalance'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                generateData();
+                updateAnalysis();
+            });
+        });
+        
+        drawChart();
+        setLang('EN'); // Initialize translation
+        updateAnalysis();
+        
+        // Auto-start simulation on load
+        generateData();
+    };
 </script>
 
 </body>
